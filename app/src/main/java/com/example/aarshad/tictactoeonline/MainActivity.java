@@ -1,5 +1,6 @@
 package com.example.aarshad.tictactoeonline;
 
+import android.graphics.Color;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -15,8 +16,13 @@ import com.google.firebase.analytics.FirebaseAnalytics;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -27,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
     EditText etMyEmail;
     Button btnLogin;
     String myEmail;
+    String uid;
 
     // Firebase
     private FirebaseAnalytics mFirebaseAnalytics;
@@ -59,7 +66,10 @@ public class MainActivity extends AppCompatActivity {
                     btnLogin.setEnabled(false);
                     etMyEmail.setText(myEmail);
 
-                    myRef.child("Users").child(formatEmail(myEmail)).child("Request").setValue(user.getUid());
+                    incomingRequests();
+                    uid = user.getUid();
+
+
 
                 } else {
                     // User is signed out
@@ -70,6 +80,34 @@ public class MainActivity extends AppCompatActivity {
         };
 
 
+    }
+
+    private void incomingRequests() {
+
+        myRef.child("Users").child(formatEmail(myEmail)).child("Request_From")
+        //myRef.child("Users").child(formatEmail(myEmail)).child("Request")
+                .addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+
+                if (dataSnapshot.getValue(String.class) != null) {
+                    Toast.makeText(getApplicationContext(), "New Request: " + dataSnapshot.getValue(String.class), Toast.LENGTH_SHORT).show();
+                    changeColorEditText();
+                }
+            }
+
+            @Override
+            public void onCancelled(DatabaseError error) {
+                // Failed to read value
+                Log.w(TAG, "Failed to read value.", error.toException());
+            }
+        });
+
+
+    }
+
+    private void changeColorEditText() {
+        etInviteEmail.setBackgroundColor(Color.RED);
     }
 
     private String formatEmail(String email){
@@ -105,8 +143,6 @@ public class MainActivity extends AppCompatActivity {
                             myEmail = user.getEmail();
 
 
-
-
                         } else {
                             // If sign in fails, display a message to the user.
                             Log.w(TAG, "createUserWithEmail:failure", task.getException());
@@ -121,7 +157,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onInviteClick(View view) {
-        Log.d(TAG,"Invite: " + etInviteEmail.getText().toString());
+
+        //
+        myRef.child("Users").child(formatEmail(etInviteEmail.getText().toString())).child("Request_From").setValue(myEmail);
+
+
+        myRef.child("Users").child(formatEmail(etInviteEmail.getText().toString())).push().setValue(myEmail);
     }
 
     public void onAcceptClick(View view) {
@@ -134,4 +175,5 @@ public class MainActivity extends AppCompatActivity {
 
     public void onButtonsClick(View view) {
     }
+
 }
