@@ -22,7 +22,9 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,6 +36,8 @@ public class MainActivity extends AppCompatActivity {
     Button btnLogin;
     String myEmail;
     String uid;
+    String playerSession;
+    String mySample="X";
 
     // Firebase
     private FirebaseAnalytics mFirebaseAnalytics;
@@ -85,29 +89,30 @@ public class MainActivity extends AppCompatActivity {
     private void incomingRequests() {
 
         myRef.child("Users").child(formatEmail(myEmail)).child("Request_From")
-        //myRef.child("Users").child(formatEmail(myEmail)).child("Request")
+                //myRef.child("Users").child(formatEmail(myEmail)).child("Request")
                 .addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
 
-                if (dataSnapshot.getValue(String.class) != null) {
-                    Toast.makeText(getApplicationContext(), "New Request: " + dataSnapshot.getValue(String.class), Toast.LENGTH_SHORT).show();
-                    changeColorEditText();
-                }
-            }
+                        if (dataSnapshot.getValue(String.class) != null) {
+                            Toast.makeText(getApplicationContext(), "New Request: " + dataSnapshot.getValue(String.class), Toast.LENGTH_SHORT).show();
+                            changeColorEditText(dataSnapshot.getValue(String.class).toString());
+                        }
+                    }
 
-            @Override
-            public void onCancelled(DatabaseError error) {
-                // Failed to read value
-                Log.w(TAG, "Failed to read value.", error.toException());
-            }
-        });
+                    @Override
+                    public void onCancelled(DatabaseError error) {
+                        // Failed to read value
+                        Log.w(TAG, "Failed to read value.", error.toException());
+                    }
+                });
 
 
     }
 
-    private void changeColorEditText() {
+    private void changeColorEditText(String s) {
         etInviteEmail.setBackgroundColor(Color.RED);
+        etInviteEmail.setText(s);
     }
 
     private String formatEmail(String email){
@@ -157,16 +162,70 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onInviteClick(View view) {
-
         //
         myRef.child("Users").child(formatEmail(etInviteEmail.getText().toString())).child("Request_From").setValue(myEmail);
 
-
         myRef.child("Users").child(formatEmail(etInviteEmail.getText().toString())).push().setValue(myEmail);
+
+        startGame(formatEmail(etInviteEmail.getText().toString()) + ":" + formatEmail(myEmail) );
+        mySample = "X";
     }
 
     public void onAcceptClick(View view) {
         Log.d(TAG,"Invite: " + etInviteEmail.getText().toString());
+        myRef.child("Users").child(formatEmail(etInviteEmail.getText().toString())).push().setValue(myEmail);
+
+        startGame(formatEmail(  formatEmail(myEmail)  + ":" + etInviteEmail.getText().toString()));
+        etInviteEmail.setBackgroundColor(Color.GREEN);
+        mySample = "O";
+
+    }
+
+    private void startGame(String playerGameId) {
+
+        playerSession = playerGameId;
+
+        myRef.child("Playing").child(playerGameId).removeValue();
+
+
+        // Read from the database
+        myRef.child("Playing").child(playerGameId)
+                .addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+
+                        try{
+                            Player1.clear();
+                            Player2.clear();
+                            ActivePlayer=2;
+                            HashMap<String,Object> td=(HashMap<String,Object>) dataSnapshot.getValue();
+                            if (td!=null){
+
+                                String value;
+
+                                for(String key:td.keySet()){
+                                    value=(String) td.get(key);
+                                    if(!value.equals(formatEmail(myEmail)))
+                                        ActivePlayer=mySample=="X"?1:2;
+                                    else
+                                        ActivePlayer=mySample=="X"?2:1;
+
+                                    String[] splitID= key.split(":");
+                                    AutoPlay(Integer.parseInt(splitID[1]));
+
+                                }
+                            }
+
+
+                        }catch (Exception ex){}
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError error) {
+
+                    }
+                });
+
     }
 
     public void onLoginClick(View view) {
@@ -174,6 +233,202 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onButtonsClick(View view) {
+
+        if (playerSession.length()<=0)
+            return;
+
+        Button buSelected= (Button) view;
+        int cellId=0;
+        switch ((buSelected.getId())){
+
+            case R.id.bu1:
+                cellId=1;
+                break;
+
+            case R.id.bu2:
+                cellId=2;
+                break;
+
+            case R.id.bu3:
+                cellId=3;
+                break;
+
+            case R.id.bu4:
+                cellId=4;
+                break;
+
+            case R.id.bu5:
+                cellId=5;
+                break;
+
+            case R.id.bu6:
+                cellId=6;
+                break;
+
+            case R.id.bu7:
+                cellId=7;
+                break;
+
+            case R.id.bu8:
+                cellId=8;
+                break;
+
+            case R.id.bu9:
+                cellId=9;
+                break;
+        }
+
+        myRef.child("Playing").child(playerSession).child("ChildId:"+cellId).setValue(formatEmail(myEmail));
+
+
+
+
     }
 
+
+    int ActivePlayer=1; // 1- for first , 2 for second
+    ArrayList<Integer> Player1= new ArrayList<Integer>();// hold player 1 data
+    ArrayList<Integer> Player2= new ArrayList<Integer>();// hold player 2 data
+    void PlayGame(int CellID,Button buSelected){
+
+        Log.d("Player:",String.valueOf(CellID));
+
+        if (ActivePlayer==1){
+            buSelected.setText("X");
+            buSelected.setBackgroundColor(Color.GREEN);
+            Player1.add(CellID);
+
+
+        }
+        else if (ActivePlayer==2){
+            buSelected.setText("O");
+            buSelected.setBackgroundColor(Color.BLUE);
+            Player2.add(CellID);
+
+
+        }
+
+        buSelected.setEnabled(false);
+        CheckWiner();
+    }
+
+    void CheckWiner(){
+        int Winer=-1;
+        //row 1
+        if (Player1.contains(1) && Player1.contains(2)  && Player1.contains(3))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(1) && Player2.contains(2)  && Player2.contains(3))  {
+            Winer=2 ;
+        }
+
+        //row 2
+        if (Player1.contains(4) && Player1.contains(5)  && Player1.contains(6))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(4) && Player2.contains(5)  && Player2.contains(6))  {
+            Winer=2 ;
+        }
+
+        //row 3
+        if (Player1.contains(7) && Player1.contains(8)  && Player1.contains(9))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(7) && Player2.contains(8)  && Player2.contains(9))  {
+            Winer=2 ;
+        }
+
+
+        //col 1
+        if (Player1.contains(1) && Player1.contains(4)  && Player1.contains(7))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(1) && Player2.contains(4)  && Player2.contains(7))  {
+            Winer=2 ;
+        }
+
+        //col 2
+        if (Player1.contains(2) && Player1.contains(5)  && Player1.contains(8))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(2) && Player2.contains(5)  && Player2.contains(8))  {
+            Winer=2 ;
+        }
+
+
+        //col 3
+        if (Player1.contains(3) && Player1.contains(6)  && Player1.contains(9))  {
+            Winer=1 ;
+        }
+        if (Player2.contains(3) && Player2.contains(6)  && Player2.contains(9))  {
+            Winer=2 ;
+        }
+
+
+        if ( Winer !=-1){
+            // We have winer
+
+            if (Winer==1){
+                Toast.makeText(this,"Player 1 is winner",Toast.LENGTH_LONG).show();
+            }
+
+            if (Winer==2){
+                Toast.makeText(this,"Player 2 is winner",Toast.LENGTH_LONG).show();
+            }
+
+        }
+
+    }
+
+    void AutoPlay(int CellID){
+
+        Button buSelected;
+        switch (CellID){
+
+            case 1 :
+                buSelected=(Button) findViewById(R.id.bu1);
+                break;
+
+            case 2:
+                buSelected=(Button) findViewById(R.id.bu2);
+                break;
+
+            case 3:
+                buSelected=(Button) findViewById(R.id.bu3);
+                break;
+
+            case 4:
+                buSelected=(Button) findViewById(R.id.bu4);
+                break;
+
+            case 5:
+                buSelected=(Button) findViewById(R.id.bu5);
+                break;
+
+            case 6:
+                buSelected=(Button) findViewById(R.id.bu6);
+                break;
+
+            case 7:
+                buSelected=(Button) findViewById(R.id.bu7);
+                break;
+
+            case 8:
+                buSelected=(Button) findViewById(R.id.bu8);
+                break;
+
+            case 9:
+                buSelected=(Button) findViewById(R.id.bu9);
+                break;
+            default:
+                buSelected=(Button) findViewById(R.id.bu1);
+                break;
+
+        }
+        PlayGame(CellID, buSelected);
+    }
+
+
+
 }
+
